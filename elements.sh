@@ -2,35 +2,48 @@
 
 PSQL="psql --username=freecodecamp --dbname=periodic_table -t --no-align -c"
 
-echo -e "\nPlease provide an element as an argument."
-read ELEMENT
-
+# function to print the formatted string
 print_output(){
-  RESULT=$1
-  
-  echo -e "\nThe input is $1"
-
   if [[ -z "$1" ]]
   then
     echo -e "\nI could not find that element in the database."    
   else
-    IFS='|' read -r ATOMIC_NUMBER SYMBOL NAME <<< "$1"
-    
-    echo -e "\nIn $1, atomic number is $ATOMIC_NUMBER"
-
-    echo -e "\nThe element with atomic number $ATOMIC_NUMBER is $NAME ($SYMBOL). It's a nonmetal, with a mass of 1.008 amu. Hydrogen has a melting point of -259.1 celsius and a boiling point of -252.9 celsius."
+    IFS='|' read -r ATOMIC_NUMBER SYMBOL NAME TYPE ATOMIC_MASS MP BP <<< "$1"
+    echo "The element with atomic number $ATOMIC_NUMBER is $NAME ($SYMBOL). It's a $TYPE, with a mass of $ATOMIC_MASS amu. $NAME has a melting point of $MP celsius and a boiling point of $BP celsius."
   fi
 }
 
-if [[ $ELEMENT =~ ^[0-9]+$ ]]
+
+# check whether an input has been provided
+if [[ $# -eq 0 ]]
 then
-  RESULT=$($PSQL "SELECT * FROM elements WHERE atomic_number = $ELEMENT")
-  echo $RESULT
-  print_output $RESULT
+   echo "Please provide an element as an argument."
+else
+    ELEMENT=$1
 
-else 
-  RESULT=$($PSQL "SELECT * FROM elements WHERE symbol = '$ELEMENT' OR name = '$ELEMENT'")
-  echo $RESULT
-  print_output $RESULT
+    # common joint table stored in the variable for DRY purposes 
+    JOINT_TABLE="SELECT atomic_number, symbol, name, types.type, atomic_mass, melting_point_celsius, boiling_point_celsius
+                    FROM elements 
+                    INNER JOIN properties USING(atomic_number)
+                    INNER JOIN types USING(type_id)"
+
+    # if-else structure is check whether the input is an integer. 
+    if [[ $ELEMENT =~ ^[0-9]+$ ]]
+    then
+        RESULT=$($PSQL "$JOINT_TABLE
+                        WHERE atomic_number = $ELEMENT")
+        if [[ -z $RESULT ]]; then
+            echo -e "\nI could not find that element in the database."
+        else
+            print_output $RESULT
+        fi
+    else 
+        RESULT=$($PSQL "$JOINT_TABLE
+                        WHERE symbol = '$ELEMENT' OR name = '$ELEMENT'")
+        if [[ -z $RESULT ]]; then
+                echo -e "\nI could not find that element in the database."
+        else
+            print_output $RESULT
+        fi
+    fi
 fi
-
